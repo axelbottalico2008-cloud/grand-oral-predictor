@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #0D0D0D;
+  color: #E8E8E4;
+  font-family: var(--font-body);
+}
+
+/* Scrollbar custom */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #1E1E1C;
+}
+::-webkit-scrollbar-thumb {
+  background: #3D3D3A;
+  border-radius: 2px;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.35;
+}
+
+/* Animations d'entrée avec délai */
+[data-animate] {
+  opacity: 0;
+  animation: fadeUp 0.6s ease forwards;
+}
+[data-animate='1'] { animation-delay: 0.1s; }
+[data-animate='2'] { animation-delay: 0.2s; }
+[data-animate='3'] { animation-delay: 0.3s; }
+[data-animate='4'] { animation-delay: 0.4s; }
+[data-animate='5'] { animation-delay: 0.5s; }
+[data-animate='6'] { animation-delay: 0.6s; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Input styles */
+.gop-input {
+  @apply w-full bg-surface-raised border border-surface-border rounded-xl px-4 py-3
+         text-ink-100 placeholder-ink-400 font-body text-sm
+         transition-all duration-200 outline-none
+         focus:border-accent focus:ring-2 focus:ring-accent/10;
+}
+.gop-input:hover:not(:focus) {
+  border-color: #3D3D3A;
+}
+
+/* Label styles */
+.gop-label {
+  @apply block text-xs font-body font-medium text-ink-300 mb-1.5 uppercase tracking-widest;
+}
+
+/* Card */
+.gop-card {
+  @apply bg-surface-raised border border-surface-border rounded-2xl p-6;
+}
+
+/* Primary button */
+.gop-btn {
+  @apply w-full bg-accent text-ink-900 font-display font-bold text-base rounded-xl py-4 px-6
+         transition-all duration-200 hover:bg-accent-dim active:scale-[0.98]
+         disabled:opacity-40 disabled:cursor-not-allowed;
+}
+
+/* Grid dot background */
+.grid-bg {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
