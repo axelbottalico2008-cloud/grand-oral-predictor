@@ -120,14 +120,16 @@ export default function FormPage() {
           {/* Lycée */}
           <div data-animate="1">
             <label className="gop-label">Lycée *</label>
-            <input
+            <select
               name="lycee"
               value={form.lycee}
               onChange={handleChange}
-              placeholder="Ex: Lycée Henri IV"
               className="gop-input"
               required
-            />
+            >
+              <option value="">Choisir un lycée…</option>
+              <option value="Sainte-Anne">Sainte-Anne</option>
+            </select>
           </div>
 
           {/* Classe */}
