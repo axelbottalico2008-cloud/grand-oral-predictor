@@ -3,26 +3,38 @@ import { supabase } from '@/lib/supabase'
 import { computePrediction } from '@/lib/scoring'
 import { v4 as uuidv4 } from 'uuid'
 
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 180
+const COOKIE_NAME = 'gop_submitted'
+
 export async function POST(req: NextRequest) {
   try {
+    const existingCookie = req.cookies.get(COOKIE_NAME)
+    if (existingCookie?.value) {
+      return NextResponse.json(
+        {
+          error: 'already_submitted',
+          id: existingCookie.value,
+          message: 'Tu as deja soumis ta prediction.',
+        },
+        { status: 409 }
+      )
+    }
+
     const body = await req.json()
     const { lycee, classe, spe1, spe2, commission, date_passage, heure_passage } = body
 
-    // ── Validation basique ──────────────────────────────────────────────────
     if (!lycee || !spe1 || !spe2 || !commission || !date_passage || !heure_passage) {
       return NextResponse.json({ error: 'Champs requis manquants.' }, { status: 400 })
     }
     if (spe1 === spe2) {
       return NextResponse.json(
-        { error: 'Les deux spécialités doivent être différentes.' },
+        { error: 'Les deux specialites doivent etre differentes.' },
         { status: 400 }
       )
     }
 
-    // ── Génération de l'ID résultat ─────────────────────────────────────────
     const id = uuidv4()
 
-    // ── Insertion dans Supabase ─────────────────────────────────────────────
     const { error: insertError } = await supabase.from('entries').insert([
       {
         id,
@@ -38,10 +50,9 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       console.error('[submit] Supabase insert error:', insertError)
-      return NextResponse.json({ error: 'Erreur base de données.' }, { status: 500 })
+      return NextResponse.json({ error: 'Erreur base de donnees.' }, { status: 500 })
     }
 
-    // ── Récupération des profils similaires (hors entrée courante) ──────────
     const { data: entries, error: fetchError } = await supabase
       .from('entries')
       .select('*')
@@ -54,13 +65,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ id, prediction: null })
     }
 
-    // ── Calcul du score ─────────────────────────────────────────────────────
     const prediction = computePrediction(
       { lycee, spe1, spe2, commission, heure_passage },
       entries || []
     )
 
-    return NextResponse.json({ id, prediction })
+    const response = NextResponse.json({ id, prediction })
+    response.cookies.set(COOKIE_NAME, id, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: COOKIE_MAX_AGE,
+      path: '/',
+    })
+
+    return response
   } catch (err) {
     console.error('[submit] Unexpected error:', err)
     return NextResponse.json({ error: 'Erreur interne.' }, { status: 500 })
