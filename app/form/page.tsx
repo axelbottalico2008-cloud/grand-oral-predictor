@@ -76,12 +76,19 @@ export default function FormPage() {
         body: JSON.stringify(form),
       })
 
+      const data = await res.json()
+
+      // Cas spécial : déjà soumis → redirige vers l'ancien résultat
+      if (res.status === 409 && data.error === 'already_submitted') {
+        router.push(`/result/${data.id}`)
+        return
+      }
+
       if (!res.ok) {
-        const data = await res.json()
         throw new Error(data.error || 'Erreur serveur')
       }
 
-      const { id } = await res.json()
+      const { id } = data
 
       // Sauvegarde locale pour retrouver ses propres résultats
       const stored = JSON.parse(localStorage.getItem('gop_entries') || '[]')
