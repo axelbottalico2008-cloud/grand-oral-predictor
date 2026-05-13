@@ -58,6 +58,11 @@ export default function FormPage() {
         body: JSON.stringify(form),
       })
       const data = await res.json()
+      if (res.status === 409 && data.error === 'already_submitted') {
+        localStorage.setItem('gop_result_id', data.id)
+        router.push(`/result/${data.id}`)
+        return
+      }
       if (!res.ok) throw new Error(data.error || 'Erreur serveur')
       localStorage.setItem('gop_result_id', data.id)
       router.push(`/result/${data.id}`)
