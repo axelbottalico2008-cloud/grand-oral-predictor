@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { computePrediction, confidenceLabel, confidenceColor } from '@/lib/scoring'
 import ShareButton from '@/components/ShareButton'
+import RefreshButton from '@/components/RefreshButton'
 
 interface Props {
   params: { id: string }
@@ -195,6 +196,10 @@ export default async function ResultPage({ params }: Props) {
             </p>
           </div>
         </div>
+
+	<div data-animate="6">
+ 	 <RefreshButton />
+	</div>
 
         {/* Share */}
         <div data-animate="6">
