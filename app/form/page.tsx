@@ -5,10 +5,24 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 const SPECIALITES = [
-  'Mathematiques','Physique-Chimie','SVT','NSI','SES',
-  'Histoire-Geographie','HGGSP','LLCE Anglais','LLCE Espagnol',
-  'LLCE Allemand','HLP','Arts','EPS','Philosophie',
-  'Biologie-Ecologie','Sciences de l ingenieur','Autre',
+  'Mathematiques',
+  'Physique-Chimie',
+  'SVT',
+  'NSI',
+  'SES',
+  'HGGSP',
+  'LLCE Anglais',
+  'LLCE Espagnol',
+  'LLCE Allemand',
+  'HLP',
+  'Arts',
+  'Sciences de l ingenieur',
+  'Autre',
+]
+
+const CLASSES = [
+  'TG1','TG2','TG3','TG4','TG5',
+  'TG6','TG7','TG8','TG9','TG10',
 ]
 
 type FormData = {
@@ -21,6 +35,7 @@ type FormData = {
   heure_passage: string
 }
 
+export const revalidate = 30
 export default function FormPage() {
   const router = useRouter()
   const [form, setForm] = useState<FormData>({
@@ -95,21 +110,30 @@ export default function FormPage() {
           </div>
           <div data-animate="2">
             <label className="gop-label">Classe <span className="text-ink-500 normal-case tracking-normal">(optionnel)</span></label>
-            <input name="classe" value={form.classe} onChange={handleChange} placeholder="Ex: T G1" className="gop-input" />
+            <select name="classe" value={form.classe} onChange={handleChange} className="gop-input">
+              <option value="">Choisir une classe...</option>
+              {CLASSES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
           <div data-animate="3" className="grid grid-cols-2 gap-3">
             <div>
               <label className="gop-label">Specialite 1 *</label>
               <select name="spe1" value={form.spe1} onChange={handleChange} className="gop-input" required>
                 <option value="">Choisir...</option>
-                {SPECIALITES.map((s) => <option key={s} value={s} disabled={s === form.spe2}>{s}</option>)}
+                {SPECIALITES.map((s) => (
+                  <option key={s} value={s} disabled={s === form.spe2}>{s}</option>
+                ))}
               </select>
             </div>
             <div>
               <label className="gop-label">Specialite 2 *</label>
               <select name="spe2" value={form.spe2} onChange={handleChange} className="gop-input" required>
                 <option value="">Choisir...</option>
-                {SPECIALITES.map((s) => <option key={s} value={s} disabled={s === form.spe1}>{s}</option>)}
+                {SPECIALITES.map((s) => (
+                  <option key={s} value={s} disabled={s === form.spe1}>{s}</option>
+                ))}
               </select>
             </div>
           </div>
