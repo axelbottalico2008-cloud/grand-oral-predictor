@@ -78,16 +78,10 @@ export function computePrediction(
     // On ne garde que les profils avec au moins un point commun
     if (score === 0) continue
 
-    // On attribue le score UNIQUEMENT aux spécialités que l'utilisateur a choisies.
-    // On ne score que l'intersection entre ses spés et celles du profil similaire.
-    // Exemple : moi = [Maths, Physique], autre = [Maths, SVT] → seul Maths est scoré.
-    const commonSpes = mySpes.filter((s) => theirSpes.includes(s))
-    for (const spe of commonSpes) {
-      // On retrouve le nom original (avec casse) depuis newEntry
-      const originalName = [newEntry.spe1, newEntry.spe2].find(
-        (s) => s.trim().toLowerCase() === spe
-      ) ?? spe
-      const key = originalName.trim()
+    // On attribue le score à chaque spécialité de ce profil similaire
+    // (on ne sait pas laquelle sera interrogée donc on pondère les deux)
+    for (const spe of [entry.spe1, entry.spe2]) {
+      const key = capitalize(spe.trim())
       speScores[key] = (speScores[key] || 0) + score
     }
   }
