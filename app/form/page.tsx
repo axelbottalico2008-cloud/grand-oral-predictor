@@ -35,7 +35,6 @@ type FormData = {
   heure_passage: string
 }
 
-export const revalidate = 30
 export default function FormPage() {
   const router = useRouter()
   const [form, setForm] = useState<FormData>({
