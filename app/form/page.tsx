@@ -21,8 +21,7 @@ const SPECIALITES = [
 ]
 
 const CLASSES = [
-  'TG1','TG2','TG3','TG4','TG5',
-  'TG6','TG7','TG8','TG9','TG10',
+  'T1','T2','T3','T4','T5','T6',
 ]
 
 type FormData = {
@@ -35,6 +34,7 @@ type FormData = {
   heure_passage: string
 }
 
+ 
 export default function FormPage() {
   const router = useRouter()
   const [form, setForm] = useState<FormData>({
