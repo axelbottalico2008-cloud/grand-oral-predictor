@@ -23,7 +23,6 @@ export default async function StatsPage() {
     )
   }
 
-  // Grouper par commission + date
   type Group = {
     commission: string
     date: string
@@ -52,19 +51,16 @@ export default async function StatsPage() {
     grouped[key].speCounts[entry.spe2] = (grouped[key].speCounts[entry.spe2] || 0) + 1
   }
 
-  // Calcule les spés communes (>= 80% des élèves) et les spés distinctives
   for (const group of Object.values(grouped)) {
     const threshold = Math.ceil(group.total * 0.8)
     group.commonSpes = Object.entries(group.speCounts)
       .filter(([, count]) => count >= threshold)
       .map(([spe]) => spe)
 
-    // Spés distinctives = celles qui ne sont pas communes à (presque) tout le monde
     const distinctiveEntries = Object.entries(group.speCounts)
       .filter(([spe]) => !group.commonSpes.includes(spe))
       .sort((a, b) => b[1] - a[1])
 
-    // Si tout le monde a les mêmes spés (petit groupe), on garde tout
     if (distinctiveEntries.length === 0) {
       group.uniqueSpes = Object.fromEntries(
         Object.entries(group.speCounts).sort((a, b) => b[1] - a[1])
@@ -75,11 +71,21 @@ export default async function StatsPage() {
     }
   }
 
-  const groups = Object.values(grouped).sort((a, b) => {
-    if (a.date < b.date) return -1
-    if (a.date > b.date) return 1
-    return a.commission.localeCompare(b.commission)
-  })
+  // Grouper par date
+  const byDate: Record<string, Group[]> = {}
+  for (const group of Object.values(grouped)) {
+    if (!byDate[group.date]) byDate[group.date] = []
+    byDate[group.date].push(group)
+  }
+
+  // Trier commissions par date
+  const days = Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, commissions]) => ({
+      date,
+      commissions: commissions.sort((a, b) => a.commission.localeCompare(b.commission)),
+      totalEleves: commissions.reduce((s, g) => s + g.total, 0),
+    }))
 
   return (
     <main className="min-h-screen grid-bg flex flex-col items-center px-4 py-10">
@@ -94,11 +100,11 @@ export default async function StatsPage() {
             Configurations des jurys
           </h1>
           <p className="font-body text-sm text-ink-400 mt-1">
-            Spécialités les plus probables par commission et par date.
+            Clique sur un jour pour voir les commissions.
             Basé sur {entries.length} profil{entries.length > 1 ? 's' : ''} soumis.
           </p>
         </div>
-        <StatsClient groups={groups} />
+        <StatsClient days={days} />
       </div>
     </main>
   )
