@@ -25,10 +25,13 @@ export function computePrediction(
   for (const entry of existingEntries) {
     let score = 0
 
-    // +60 : même commission (facteur principal = même jury)
-    if (entry.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase()) {
-      score += 60
+    // Commission différente = jury différent = on ignore complètement
+    if (entry.commission.trim().toLowerCase() !== newEntry.commission.trim().toLowerCase()) {
+      continue
     }
+
+    // +60 : même commission (déjà vérifiée)
+    score += 60
 
     // +20 : même date (confirmation même jury)
     if (entry.date_passage?.slice(0, 10) === newEntry.date_passage?.slice(0, 10)) {
