@@ -3,13 +3,12 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { computePrediction, confidenceLabel, confidenceColor } from '@/lib/scoring'
 import ShareButton from '@/components/ShareButton'
-import RefreshButton from '@/components/RefreshButton'
+import RefreshButton from '@/components/components/RefreshButton'
 
 interface Props {
   params: { id: string }
 }
 
-export const revalidate = 30
 
 export default async function ResultPage({ params }: Props) {
   const { id } = params
@@ -198,9 +197,20 @@ export default async function ResultPage({ params }: Props) {
           </div>
         </div>
 
-	<div data-animate="6">
- 	 <RefreshButton />
-	</div>
+        {/* Actualiser */}
+        <RefreshButton />
+
+        {/* Lien vers stats */}
+        <div data-animate="6">
+          <Link
+            href="/stats"
+            className="w-full border border-surface-border bg-surface-raised hover:bg-surface-high
+                       text-ink-300 font-display font-bold text-sm rounded-xl py-3.5 px-5
+                       transition-all duration-200 flex items-center justify-center gap-2"
+          >
+            📊 Voir la config des jurys
+          </Link>
+        </div>
 
         {/* Share */}
         <div data-animate="6">
