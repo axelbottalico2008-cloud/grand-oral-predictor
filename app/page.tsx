@@ -34,6 +34,9 @@ export default function HomePage() {
               Lancer la prédiction →
             </button>
           </Link>
+          <Link href="/stats" className="block text-center text-sm text-ink-400 hover:text-accent transition-colors mt-3">
+            📊 Voir les stats des jurys
+          </Link>
         </div>
 
         {/* Features */}
