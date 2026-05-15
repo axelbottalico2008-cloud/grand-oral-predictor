@@ -32,11 +32,20 @@ export default function StatsClient({ days }: { days: Day[] }) {
 
   const filteredDays = days.map(day => ({
     ...day,
-    commissions: day.commissions.filter(g =>
-      search === '' ||
-      g.commission.toLowerCase().includes(search.toLowerCase()) ||
-      day.date.includes(search)
-    )
+    commissions: day.commissions.filter(g => {
+      if (search === '') return true
+      const s = search.toLowerCase()
+      const dateLabel = new Date(day.date).toLocaleDateString('fr-FR', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      }).toLowerCase()
+      const dateAlt = new Date(day.date).toLocaleDateString('fr-FR').toLowerCase()
+      return (
+        g.commission.toLowerCase().includes(s) ||
+        day.date.includes(s) ||
+        dateLabel.includes(s) ||
+        dateAlt.includes(s)
+      )
+    })
   })).filter(day => day.commissions.length > 0)
 
   return (
