@@ -38,6 +38,7 @@ export default async function ResultPage({ params }: Props) {
       spe2: entry.spe2,
       commission: entry.commission,
       heure_passage: entry.heure_passage,
+      date_passage: entry.date_passage,
     },
     others || []
   )

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     const prediction = computePrediction(
-      { lycee, spe1, spe2, commission, heure_passage },
+      { lycee, spe1, spe2, commission, heure_passage, date_passage },
       entries || []
     )
 

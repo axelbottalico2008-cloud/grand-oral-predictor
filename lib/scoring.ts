@@ -29,6 +29,7 @@ type NewEntry = {
   spe2: string
   commission: string
   heure_passage: string
+  date_passage: string
 }
 
 export function computePrediction(
