@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import StatsClient from '@/components/StatsClient'
 
 export const revalidate = 60
 
@@ -23,12 +24,16 @@ export default async function StatsPage() {
   }
 
   // Grouper par commission + date
-  const grouped: Record<string, {
+  type Group = {
     commission: string
     date: string
-    spes: Record<string, number>
     total: number
-  }> = {}
+    speCounts: Record<string, number>
+    commonSpes: string[]
+    uniqueSpes: Record<string, number>
+  }
+
+  const grouped: Record<string, Group> = {}
 
   for (const entry of entries) {
     const key = `${entry.commission}__${entry.date_passage}`
@@ -36,13 +41,38 @@ export default async function StatsPage() {
       grouped[key] = {
         commission: entry.commission,
         date: entry.date_passage,
-        spes: {},
         total: 0,
+        speCounts: {},
+        commonSpes: [],
+        uniqueSpes: {},
       }
     }
     grouped[key].total += 1
-    grouped[key].spes[entry.spe1] = (grouped[key].spes[entry.spe1] || 0) + 1
-    grouped[key].spes[entry.spe2] = (grouped[key].spes[entry.spe2] || 0) + 1
+    grouped[key].speCounts[entry.spe1] = (grouped[key].speCounts[entry.spe1] || 0) + 1
+    grouped[key].speCounts[entry.spe2] = (grouped[key].speCounts[entry.spe2] || 0) + 1
+  }
+
+  // Calcule les spés communes (>= 80% des élèves) et les spés distinctives
+  for (const group of Object.values(grouped)) {
+    const threshold = Math.ceil(group.total * 0.8)
+    group.commonSpes = Object.entries(group.speCounts)
+      .filter(([, count]) => count >= threshold)
+      .map(([spe]) => spe)
+
+    // Spés distinctives = celles qui ne sont pas communes à (presque) tout le monde
+    const distinctiveEntries = Object.entries(group.speCounts)
+      .filter(([spe]) => !group.commonSpes.includes(spe))
+      .sort((a, b) => b[1] - a[1])
+
+    // Si tout le monde a les mêmes spés (petit groupe), on garde tout
+    if (distinctiveEntries.length === 0) {
+      group.uniqueSpes = Object.fromEntries(
+        Object.entries(group.speCounts).sort((a, b) => b[1] - a[1])
+      )
+      group.commonSpes = []
+    } else {
+      group.uniqueSpes = Object.fromEntries(distinctiveEntries)
+    }
   }
 
   const groups = Object.values(grouped).sort((a, b) => {
@@ -58,70 +88,17 @@ export default async function StatsPage() {
           &larr; Retour
         </Link>
       </div>
-
-      <div className="w-full max-w-lg space-y-6">
+      <div className="w-full max-w-lg space-y-4">
         <div data-animate="1">
           <h1 className="font-display font-bold text-3xl text-ink-50">
             Configurations des jurys
           </h1>
           <p className="font-body text-sm text-ink-400 mt-1">
-            Répartition probable des spécialités par commission et par date.
+            Spécialités les plus probables par commission et par date.
             Basé sur {entries.length} profil{entries.length > 1 ? 's' : ''} soumis.
           </p>
         </div>
-
-        {groups.map((group) => {
-          const totalSpes = Object.values(group.spes).reduce((a, b) => a + b, 0)
-          const sortedSpes = Object.entries(group.spes)
-            .sort((a, b) => b[1] - a[1])
-
-          return (
-            <div key={`${group.commission}__${group.date}`} className="gop-card space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-display font-bold text-lg text-ink-50">
-                    Commission {group.commission}
-                  </p>
-                  <p className="font-body text-xs text-ink-400 mt-0.5">
-                    {new Date(group.date).toLocaleDateString('fr-FR', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-                <span className="text-xs font-body text-ink-500 bg-surface-high border border-surface-border rounded-full px-3 py-1 shrink-0">
-                  {group.total} élève{group.total > 1 ? 's' : ''}
-                </span>
-              </div>
-
-              <div className="space-y-2.5">
-                {sortedSpes.map(([spe, count]) => {
-                  const pct = Math.round((count / totalSpes) * 100)
-                  return (
-                    <div key={spe}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-body text-sm text-ink-100">{spe}</span>
-                        <span className="font-display font-bold text-sm text-ink-300">{pct}%</span>
-                      </div>
-                      <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className="h-full bg-accent rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <p className="text-xs text-ink-500 font-body">
-                ⚠️ Basé sur les profils soumis, sans valeur officielle.
-              </p>
-            </div>
-          )
-        })}
+        <StatsClient groups={groups} />
       </div>
     </main>
   )
