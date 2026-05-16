@@ -37,6 +37,9 @@ export default function HomePage() {
           <Link href="/stats" className="block text-center text-sm text-ink-400 hover:text-accent transition-colors mt-3">
             📊 Voir les stats des jurys
           </Link>
+          <Link href="/qrcode" className="block text-center text-sm text-ink-400 hover:text-accent transition-colors mt-2">
+            📱 QR Code du site
+          </Link>
         </div>
 
         {/* Features */}
