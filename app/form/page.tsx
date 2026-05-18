@@ -138,7 +138,7 @@ export default function FormPage() {
           </div>
           <div data-animate="4">
             <label className="gop-label">Numero de commission *</label>
-            <input name="commission" value={form.commission} onChange={handleChange} placeholder="Ex: 3 ou Commission B" className="gop-input" required />
+            <input name="commission" value={form.commission} onChange={handleChange} placeholder="Ex: 29SA##" className="gop-input" required />
           </div>
           <div data-animate="5" className="grid grid-cols-2 gap-3">
             <div>
