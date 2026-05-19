@@ -197,6 +197,18 @@ export default async function ResultPage({ params }: Props) {
           </div>
         </div>
 
+        {/* Bouton post-oral */}
+        <div data-animate="6">
+          <Link
+            href="/update"
+            className="w-full border border-green-500/20 bg-green-500/5 hover:bg-green-500/10
+                       text-green-400 font-display font-bold text-sm rounded-xl py-3.5 px-5
+                       transition-all duration-200 flex items-center justify-center gap-2"
+        >
+          ✅ Mon oral est passé — indiquer ma spé
+          </Link>
+        </div>
+
         {/* Actualiser */}
         <RefreshButton />
 

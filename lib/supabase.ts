@@ -18,6 +18,7 @@ export type Entry = {
   spe1: string
   spe2: string
   commission: string
-  date_passage: string  // format YYYY-MM-DD
-  heure_passage: string // format HH:MM
+  date_passage: string
+  heure_passage: string
+  spe_passee: string | null
 }
