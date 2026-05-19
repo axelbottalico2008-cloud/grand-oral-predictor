@@ -202,23 +202,33 @@ export default function StatsClient({ days }: { days: Day[] }) {
                             <span>{isOpen ? '▲' : '▼'}</span>
                           </button>
                           {isOpen && (
-                            <div className="mt-2 pt-2 border-t border-surface-border space-y-2">
+                            <div className="mt-3 pt-3 border-t border-surface-border space-y-3">
                               <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
-                                Couples observés
+                                Jurys plausibles observés
                               </p>
                               {group.plausibleJurys.map((jury, i) => (
-                                <div key={i} className="flex items-center justify-between bg-surface-high rounded-lg px-3 py-2">
-                                  <span className="font-body text-sm text-ink-200">
-                                    {jury.spe1} + {jury.spe2}
-                                  </span>
-                                  <span className="text-xs text-ink-400">
+                                <div key={i} className="flex items-center justify-between bg-surface-high border border-surface-border rounded-xl px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    {i === 0 && <span className="text-accent text-base">▲</span>}
+                                    <span className="font-display font-bold text-base text-ink-50">
+                                      {jury.spe1}
+                                    </span>
+                                    <span className="text-ink-500 text-sm">+</span>
+                                    <span className="font-display font-bold text-base text-ink-50">
+                                      {jury.spe2}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-ink-400 bg-surface-border rounded-full px-2.5 py-1">
                                     {jury.count} obs.
                                   </span>
                                 </div>
                               ))}
-                              <p className="text-xs text-ink-500 italic">
-                                Jury annexe toujours possible — un examinateur peut être hors spécialité observable.
-                              </p>
+                              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 flex items-start gap-3">
+                                <span className="text-yellow-400 text-lg shrink-0">⚠️</span>
+                                <p className="font-body text-sm text-yellow-300 leading-relaxed">
+                                  <span className="font-bold">Jury annexe toujours possible</span> — un examinateur peut être hors spécialité observable. Ne pas exclure cette possibilité.
+                                </p>
+                              </div>
                             </div>
                           )}
                         </div>
