@@ -2,32 +2,34 @@
 
 import { useState } from 'react'
 
-type Group = {
+type CommissionDay = {
   commission: string
   date: string
-  total: number
-  speCounts: Record<string, number>
-  commonSpes: string[]
-  uniqueSpes: Record<string, number>
+  totalEleves: number
+  hasRealData: boolean
+  realSpes: Record<string, number>
+  juryAnnexeCount: number
+  declaredSpes: Record<string, number>
+  plausibleJurys: { spe1: string; spe2: string; count: number }[]
 }
 
 type Day = {
   date: string
-  commissions: Group[]
+  commissions: CommissionDay[]
   totalEleves: number
 }
 
 export default function StatsClient({ days }: { days: Day[] }) {
   const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({})
-  const [expandedSpes, setExpandedSpes] = useState<Record<string, boolean>>({})
+  const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
 
   const toggleDay = (date: string) => {
     setExpandedDays(prev => ({ ...prev, [date]: !prev[date] }))
   }
 
-  const toggleSpes = (key: string) => {
-    setExpandedSpes(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleDetails = (key: string) => {
+    setExpandedDetails(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   const filteredDays = days.map(day => ({
@@ -50,7 +52,7 @@ export default function StatsClient({ days }: { days: Day[] }) {
 
   return (
     <div className="space-y-3">
-      {/* Barre de recherche */}
+      {/* Recherche */}
       <div className="relative">
         <input
           type="text"
@@ -63,7 +65,7 @@ export default function StatsClient({ days }: { days: Day[] }) {
       </div>
 
       {filteredDays.length === 0 && (
-        <p className="text-center text-ink-500 text-sm py-8">Aucun résultat pour cette recherche.</p>
+        <p className="text-center text-ink-500 text-sm py-8">Aucun résultat.</p>
       )}
 
       {filteredDays.map(day => {
@@ -88,96 +90,139 @@ export default function StatsClient({ days }: { days: Day[] }) {
               <span className="text-ink-400 text-sm ml-4">{isDayOpen ? '▲' : '▼'}</span>
             </button>
 
-            {/* Commissions du jour */}
             {isDayOpen && (
               <div className="border-t border-surface-border divide-y divide-surface-border">
                 {day.commissions.map(group => {
                   const key = `${group.commission}__${group.date}`
-                  const isSpesOpen = expandedSpes[key]
-                  const totalUnique = Object.values(group.uniqueSpes).reduce((a, b) => a + b, 0)
-                  const sortedUnique = Object.entries(group.uniqueSpes).sort((a, b) => b[1] - a[1])
-                  const top2 = sortedUnique.slice(0, 2)
-                  const rest = sortedUnique.slice(2)
+                  const isOpen = expandedDetails[key]
+
+                  // Calcul scores pour affichage
+                  const totalReal = Object.values(group.realSpes).reduce((a, b) => a + b, 0) + group.juryAnnexeCount
+                  const sortedReal = Object.entries(group.realSpes).sort((a, b) => b[1] - a[1])
+
+                  const totalDeclared = Object.values(group.declaredSpes).reduce((a, b) => a + b, 0)
+                  const sortedDeclared = Object.entries(group.declaredSpes)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 4)
 
                   return (
                     <div key={key} className="px-5 py-4 space-y-3">
                       {/* Header commission */}
                       <div className="flex items-center justify-between">
-                        <p className="font-display font-bold text-sm text-ink-100">
-                          Commission {group.commission}
-                        </p>
-                        <span className="text-xs text-ink-500 bg-surface-high border border-surface-border rounded-full px-2.5 py-0.5">
-                          {group.total} élève{group.total > 1 ? 's' : ''}
-                        </span>
-                      </div>
-
-                      {/* Spé commune */}
-                      {group.commonSpes.length > 0 && (
-                        <div className="bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 flex items-center gap-2">
-                          <span className="text-accent text-xs">★</span>
-                          <p className="font-body text-xs text-ink-300">
-                            Spé commune :{' '}
-                            <span className="text-accent font-medium">{group.commonSpes.join(', ')}</span>
+                        <div>
+                          <p className="font-display font-bold text-sm text-ink-100">
+                            Commission {group.commission}
+                          </p>
+                          <p className="text-xs text-ink-500 font-body mt-0.5">
+                            {group.totalEleves} élève{group.totalEleves > 1 ? 's' : ''} dans la fenêtre ±2j
                           </p>
                         </div>
-                      )}
-
-                      {/* Top 2 */}
-                      <div className="space-y-2">
-                        <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
-                          Spés les + probables
-                        </p>
-                        {top2.map(([spe, count], i) => {
-                          const pct = totalUnique > 0 ? Math.round((count / totalUnique) * 100) : 0
-                          return (
-                            <div key={spe}>
-                              <div className="flex justify-between items-center mb-1">
-                                <div className="flex items-center gap-1.5">
-                                  {i === 0 && <span className="text-accent text-xs">▲</span>}
-                                  <span className="font-body text-sm text-ink-100">{spe}</span>
-                                </div>
-                                <span className="font-display font-bold text-sm text-accent">{pct}%</span>
-                              </div>
-                              <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
-                                <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
-                              </div>
-                            </div>
-                          )
-                        })}
+                        {group.hasRealData ? (
+                          <span className="text-xs bg-green-500/10 border border-green-500/20 text-green-400 rounded-full px-2.5 py-0.5">
+                            ✓ Données réelles
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-full px-2.5 py-0.5">
+                            ~ Estimé
+                          </span>
+                        )}
                       </div>
 
-                      {/* Déroulant autres spés */}
-                      {rest.length > 0 && (
-                        <div>
-                          <button
-                            onClick={() => toggleSpes(key)}
-                            className="w-full flex items-center justify-between text-xs text-ink-400 hover:text-ink-200 transition-colors py-1"
-                          >
-                            <span>{isSpesOpen ? 'Masquer' : `Voir ${rest.length} autre${rest.length > 1 ? 's' : ''} spécialité${rest.length > 1 ? 's' : ''}`}</span>
-                            <span>{isSpesOpen ? '▲' : '▼'}</span>
-                          </button>
-                          {isSpesOpen && (
-                            <div className="space-y-2 mt-2 pt-2 border-t border-surface-border">
-                              {rest.map(([spe, count]) => {
-                                const pct = totalUnique > 0 ? Math.round((count / totalUnique) * 100) : 0
-                                return (
-                                  <div key={spe}>
-                                    <div className="flex justify-between items-center mb-1">
-                                      <span className="font-body text-sm text-ink-300">{spe}</span>
-                                      <span className="font-display font-bold text-sm text-ink-400">{pct}%</span>
-                                    </div>
-                                    <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
-                                      <div className="h-full bg-ink-400 rounded-full" style={{ width: `${pct}%` }} />
-                                    </div>
-                                  </div>
-                                )
-                              })}
+                      {/* Données réelles */}
+                      {group.hasRealData && (
+                        <div className="space-y-2">
+                          <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
+                            Spés confirmées par les élèves
+                          </p>
+                          {sortedReal.map(([spe, count]) => {
+                            const pct = totalReal > 0 ? Math.round((count / totalReal) * 100) : 0
+                            return (
+                              <div key={spe}>
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="font-body text-sm text-ink-100">{spe}</span>
+                                  <span className="font-display font-bold text-sm text-accent">{pct}%</span>
+                                </div>
+                                <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            )
+                          })}
+                          {group.juryAnnexeCount > 0 && (
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-body text-sm text-ink-400 italic">Jury annexe</span>
+                                <span className="font-display font-bold text-sm text-ink-400">
+                                  {Math.round((group.juryAnnexeCount / totalReal) * 100)}%
+                                </span>
+                              </div>
+                              <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full bg-ink-400 rounded-full"
+                                  style={{ width: `${Math.round((group.juryAnnexeCount / totalReal) * 100)}%` }} />
+                              </div>
                             </div>
                           )}
                         </div>
                       )}
 
-                      <p className="text-xs text-ink-500 font-body">⚠️ Sans valeur officielle.</p>
+                      {/* Données estimées */}
+                      {!group.hasRealData && sortedDeclared.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
+                            Spés déclarées (estimation)
+                          </p>
+                          {sortedDeclared.slice(0, 2).map(([spe, count]) => {
+                            const pct = totalDeclared > 0 ? Math.round((count / totalDeclared) * 100) : 0
+                            return (
+                              <div key={spe}>
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="font-body text-sm text-ink-300">{spe}</span>
+                                  <span className="font-display font-bold text-sm text-yellow-400">{pct}%</span>
+                                </div>
+                                <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full bg-yellow-400/60 rounded-full" style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            )
+                          })}
+                          <p className="text-xs text-ink-500 italic">
+                            ⚠️ Aucun élève n a encore confirmé sa spé passée
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Jurys plausibles — déroulant */}
+                      {group.plausibleJurys.length > 0 && (
+                        <div>
+                          <button
+                            onClick={() => toggleDetails(key)}
+                            className="w-full flex items-center justify-between text-xs text-ink-400 hover:text-ink-200 transition-colors py-1"
+                          >
+                            <span>{isOpen ? 'Masquer' : 'Voir les jurys plausibles'}</span>
+                            <span>{isOpen ? '▲' : '▼'}</span>
+                          </button>
+                          {isOpen && (
+                            <div className="mt-2 pt-2 border-t border-surface-border space-y-2">
+                              <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
+                                Couples observés
+                              </p>
+                              {group.plausibleJurys.map((jury, i) => (
+                                <div key={i} className="flex items-center justify-between bg-surface-high rounded-lg px-3 py-2">
+                                  <span className="font-body text-sm text-ink-200">
+                                    {jury.spe1} + {jury.spe2}
+                                  </span>
+                                  <span className="text-xs text-ink-400">
+                                    {jury.count} obs.
+                                  </span>
+                                </div>
+                              ))}
+                              <p className="text-xs text-ink-500 italic">
+                                Jury annexe toujours possible — un examinateur peut être hors spécialité observable.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
