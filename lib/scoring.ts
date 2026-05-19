@@ -17,7 +17,6 @@ type NewEntry = {
   date_passage: string
 }
 
-// Poids temporel selon l écart en jours
 function getTemporalWeight(dateA: string, dateB: string): number {
   const diff = Math.abs(
     new Date(dateA).getTime() - new Date(dateB).getTime()
@@ -33,7 +32,6 @@ export function computePrediction(
   existingEntries: Entry[]
 ): PredictionResult {
 
-  // Sépare les entrées avec vraie spé passée vs sans
   const withReal = existingEntries.filter(
     e => e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase()
       && e.spe_passee
@@ -49,34 +47,24 @@ export function computePrediction(
   const speScores: Record<string, number> = {}
   let hasRealData = false
 
-  // ── Modèle 1 : données réelles (spé_passee renseignée) ──────────────────
-  // C est le modèle le plus fiable : on sait exactement sur quoi le jury a interrogé
   if (withReal.length >= 2) {
     hasRealData = true
     for (const entry of withReal) {
       const weight = getTemporalWeight(entry.date_passage, newEntry.date_passage)
       const spePassed = entry.spe_passee!.trim()
-
-      // On ne score que si la spé passée est dans les spés de l utilisateur
       const mySpes = [newEntry.spe1.trim().toLowerCase(), newEntry.spe2.trim().toLowerCase()]
       if (mySpes.includes(spePassed.toLowerCase())) {
         speScores[spePassed] = (speScores[spePassed] || 0) + (100 * weight)
-      } else if (spePassed === 'Jury annexe') {
-        // Jury annexe = hors spécialité observable
-        speScores['Jury annexe'] = (speScores['Jury annexe'] || 0) + (30 * weight)
       }
     }
   }
 
-  // ── Modèle 2 : données partielles (sans spé_passee) ─────────────────────
-  // Moins fiable — on utilise les co-occurrences de spécialités
   if (!hasRealData && withoutReal.length > 0) {
     for (const entry of withoutReal) {
       const weight = getTemporalWeight(entry.date_passage, newEntry.date_passage)
       const mySpes = [newEntry.spe1.trim().toLowerCase(), newEntry.spe2.trim().toLowerCase()]
       const theirSpes = [entry.spe1.trim().toLowerCase(), entry.spe2.trim().toLowerCase()]
       const commonSpes = mySpes.filter(s => theirSpes.includes(s))
-
       for (const spe of commonSpes) {
         const originalName = [newEntry.spe1, newEntry.spe2].find(
           s => s.trim().toLowerCase() === spe
@@ -84,12 +72,8 @@ export function computePrediction(
         speScores[originalName] = (speScores[originalName] || 0) + (60 * weight)
       }
     }
-
-    // Ajoute une probabilité jury annexe systématique si données partielles
-    speScores['Jury annexe'] = (speScores['Jury annexe'] || 0) + 15
   }
 
-  // Si aucun profil similaire
   if (Object.keys(speScores).length === 0) {
     return {
       topSpecialite: 'Indetermine',
@@ -110,13 +94,11 @@ export function computePrediction(
     }))
     .sort((a, b) => b.score - a.score)
 
-  // Normalise à 100
   const sumPct = breakdown.reduce((a, b) => a + b.pct, 0)
   if (breakdown.length > 0 && sumPct !== 100) {
     breakdown[0].pct += 100 - sumPct
   }
 
-  // Plafond 90%
   const MAX_CONFIDENCE = 90
   if (breakdown[0].pct > MAX_CONFIDENCE) {
     const excess = breakdown[0].pct - MAX_CONFIDENCE
@@ -133,7 +115,7 @@ export function computePrediction(
       }
       breakdown[breakdown.length - 1].pct += excess - distributed
     } else {
-      breakdown.push({ specialite: 'Jury annexe', score: 0, pct: excess })
+      breakdown.push({ specialite: 'Autre specialite', score: 0, pct: excess })
     }
   }
 
