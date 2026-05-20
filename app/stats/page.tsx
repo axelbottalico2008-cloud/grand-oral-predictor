@@ -98,6 +98,7 @@ export default async function StatsPage() {
       const tfidfScores: CommissionDay['tfidfScores'] = []
       if (totalLocal > 0) {
         for (const [spe, count] of Object.entries(localCounts)) {
+          if (count < 3) continue
           const lf = count / totalLocal
           const gf = globalFreq[spe] || 0.01
           const ratio = lf / gf
