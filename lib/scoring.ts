@@ -32,21 +32,19 @@ export function computePrediction(
   existingEntries: Entry[]
 ): PredictionResult {
 
-  const withReal = existingEntries.filter(
-    e => e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase()
-      && e.spe_passee
-      && getTemporalWeight(e.date_passage, newEntry.date_passage) > 0
+  // Filtre : même commission + fenêtre temporelle
+  const sameCommission = existingEntries.filter(e =>
+    e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase() &&
+    getTemporalWeight(e.date_passage, newEntry.date_passage) > 0
   )
 
-  const withoutReal = existingEntries.filter(
-    e => e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase()
-      && !e.spe_passee
-      && getTemporalWeight(e.date_passage, newEntry.date_passage) > 0
-  )
+  const withReal = sameCommission.filter(e => e.spe_passee)
+  const withoutReal = sameCommission.filter(e => !e.spe_passee)
 
   const speScores: Record<string, number> = {}
   let hasRealData = false
 
+  // ── Modèle 1 : données réelles (spe_passee renseignée) ──────────────────
   if (withReal.length >= 2) {
     hasRealData = true
     for (const entry of withReal) {
@@ -59,18 +57,59 @@ export function computePrediction(
     }
   }
 
+  // ── Modèle 2 : spé distinctive par commission ────────────────────────────
+  // Logique : dans une commission, la spé présente chez TOUS les élèves
+  // est probablement la spé "commune" du jury. La spé distinctive (qui varie)
+  // est le vrai signal. On pondère en conséquence.
   if (!hasRealData && withoutReal.length > 0) {
+
+    // Compte la fréquence de chaque spé dans cette commission
+    const speCount: Record<string, number> = {}
+    let totalEleves = 0
     for (const entry of withoutReal) {
-      const weight = getTemporalWeight(entry.date_passage, newEntry.date_passage)
-      const mySpes = [newEntry.spe1.trim().toLowerCase(), newEntry.spe2.trim().toLowerCase()]
-      const theirSpes = [entry.spe1.trim().toLowerCase(), entry.spe2.trim().toLowerCase()]
-      const commonSpes = mySpes.filter(s => theirSpes.includes(s))
-      for (const spe of commonSpes) {
-        const originalName = [newEntry.spe1, newEntry.spe2].find(
-          s => s.trim().toLowerCase() === spe
-        ) ?? spe
-        speScores[originalName] = (speScores[originalName] || 0) + (60 * weight)
+      const w = getTemporalWeight(entry.date_passage, newEntry.date_passage)
+      speCount[entry.spe1] = (speCount[entry.spe1] || 0) + w
+      speCount[entry.spe2] = (speCount[entry.spe2] || 0) + w
+      totalEleves += w
+    }
+
+    // Calcule le taux de présence de chaque spé (0 à 1)
+    const speRate: Record<string, number> = {}
+    for (const [spe, count] of Object.entries(speCount)) {
+      speRate[spe] = count / totalEleves
+    }
+
+    // Pour chaque spé de l'utilisateur, calcule un score
+    // Une spé présente chez 100% = spé commune = score faible (jury déjà "saturé")
+    // Une spé présente chez 50-80% = spé distinctive = score fort
+    // Une spé présente chez <20% = bruit = score très faible
+    const mySpes = [newEntry.spe1.trim(), newEntry.spe2.trim()]
+    for (const spe of mySpes) {
+      const rate = speRate[spe.trim()] || 0
+      if (rate === 0) continue
+
+      // Si 100% des élèves ont cette spé → c'est la spé commune, score réduit
+      // Si ~50-80% → c'est le vrai signal distinctif, score max
+      let distinctiveScore: number
+      if (rate >= 0.95) {
+        // Spé universelle dans cette commission → très peu distinctive
+        distinctiveScore = 0.3
+      } else if (rate >= 0.5) {
+        // Spé majoritaire mais pas universelle → bon signal
+        distinctiveScore = 1.5
+      } else if (rate >= 0.2) {
+        // Spé minoritaire → signal moyen
+        distinctiveScore = 1.0
+      } else {
+        // Trop rare → bruit
+        distinctiveScore = 0.2
       }
+
+      // Pondère aussi par le nombre d'observations (confiance)
+      const confidence = Math.min(Math.log(1 + speCount[spe] || 0), 3)
+      const finalScore = distinctiveScore * confidence * 100
+
+      speScores[spe] = (speScores[spe] || 0) + finalScore
     }
   }
 
@@ -85,7 +124,6 @@ export function computePrediction(
   }
 
   const totalScore = Object.values(speScores).reduce((a, b) => a + b, 0)
-
   const breakdown = Object.entries(speScores)
     .map(([specialite, score]) => ({
       specialite,
@@ -94,11 +132,13 @@ export function computePrediction(
     }))
     .sort((a, b) => b.score - a.score)
 
+  // Normalise à 100
   const sumPct = breakdown.reduce((a, b) => a + b.pct, 0)
   if (breakdown.length > 0 && sumPct !== 100) {
     breakdown[0].pct += 100 - sumPct
   }
 
+  // Plafond 90%
   const MAX_CONFIDENCE = 90
   if (breakdown[0].pct > MAX_CONFIDENCE) {
     const excess = breakdown[0].pct - MAX_CONFIDENCE
