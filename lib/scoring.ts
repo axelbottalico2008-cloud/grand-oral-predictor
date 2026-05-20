@@ -33,11 +33,11 @@ export function computePrediction(
 ): PredictionResult {
 
   const sameCommission = existingEntries.filter(e =>
-    e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase() &&
-    getTemporalWeight(e.date_passage, newEntry.date_passage) > 0
+    e.commission.trim().toLowerCase() === newEntry.commission.trim().toLowerCase()
   )
 
-  const withReal = sameCommission.filter(e => e.spe_passee)
+  const withReal = sameCommission.filter(e => e.spe_passee &&
+    getTemporalWeight(e.date_passage, newEntry.date_passage) > 0)
   const withoutReal = sameCommission.filter(e => !e.spe_passee)
 
   const speScores: Record<string, number> = {}
@@ -56,16 +56,14 @@ export function computePrediction(
     }
   }
 
-  // ── Modèle 2 : fréquence locale vs globale (bayésien) ───────────────────
-  // Pour chaque spé de l'élève, on calcule :
-  // score = (taux_local / taux_global) * (nb_local / 2)
-  // 
-  // Intuition : si une spé est 4x plus présente dans cette commission
-  // que dans le lycée en général, c'est un fort signal que le jury l'interroge.
-  // On divise par 2 car environ la moitié des élèves passent sur chaque spé.
+  // ── Modèle 2 : bayésien combiné (global + temporel) ──────────────────────
+  // Score global  : fréquence dans TOUTE la commission
+  // Score temporel: fréquence dans la fenêtre ±2 jours autour de la date
+  // Score final   : global × 1.0 + temporel × 2.0
+  // Le temporel pèse 2x plus car il reflète le jury actuel
   if (!hasRealData && withoutReal.length > 0) {
 
-    // Fréquences globales (tout le dataset hors même commission)
+    // Fréquences globales (tout le dataset)
     const globalCount: Record<string, number> = {}
     let totalGlobal = 0
     for (const entry of existingEntries) {
@@ -74,29 +72,52 @@ export function computePrediction(
       totalGlobal += 2
     }
 
-    // Fréquences locales (même commission, fenêtre temporelle)
-    const localCount: Record<string, number> = {}
-    let totalLocal = 0
+    // Fréquences globales commission (tous les jours)
+    const localAllCount: Record<string, number> = {}
+    let totalLocalAll = 0
+    for (const entry of withoutReal) {
+      localAllCount[entry.spe1.trim()] = (localAllCount[entry.spe1.trim()] || 0) + 1
+      localAllCount[entry.spe2.trim()] = (localAllCount[entry.spe2.trim()] || 0) + 1
+      totalLocalAll += 2
+    }
+
+    // Fréquences temporelles commission (±2 jours)
+    const localTempCount: Record<string, number> = {}
+    let totalLocalTemp = 0
     for (const entry of withoutReal) {
       const w = getTemporalWeight(entry.date_passage, newEntry.date_passage)
-      localCount[entry.spe1.trim()] = (localCount[entry.spe1.trim()] || 0) + w
-      localCount[entry.spe2.trim()] = (localCount[entry.spe2.trim()] || 0) + w
-      totalLocal += 2 * w
+      if (w > 0) {
+        localTempCount[entry.spe1.trim()] = (localTempCount[entry.spe1.trim()] || 0) + w
+        localTempCount[entry.spe2.trim()] = (localTempCount[entry.spe2.trim()] || 0) + w
+        totalLocalTemp += 2 * w
+      }
     }
 
     const mySpes = [newEntry.spe1.trim(), newEntry.spe2.trim()]
     for (const spe of mySpes) {
-      const localC = localCount[spe] || 0
-      if (localC < 2) continue // Minimum 2 observations pour éviter le bruit
-
-      const localRate = localC / totalLocal
       const globalRate = (globalCount[spe] || 1) / totalGlobal
 
-      // Ratio surreprésentation × nombre attendu passant sur cette spé
-      const ratio = localRate / globalRate
-      const expected = ratio * (localC / 2)
+      // Score global commission
+      let scoreGlobal = 0
+      const countAll = localAllCount[spe] || 0
+      if (totalLocalAll > 0 && countAll >= 2) {
+        const localRate = countAll / totalLocalAll
+        scoreGlobal = (localRate / globalRate) * (countAll / 2)
+      }
 
-      speScores[spe] = expected
+      // Score temporel commission
+      let scoreTemp = 0
+      const countTemp = localTempCount[spe] || 0
+      if (totalLocalTemp > 0 && countTemp >= 1) {
+        const localRateTemp = countTemp / totalLocalTemp
+        scoreTemp = (localRateTemp / globalRate) * (countTemp / 2)
+      }
+
+      // Combinaison pondérée : temporel compte 2x plus
+      const finalScore = scoreGlobal * 1.0 + scoreTemp * 2.0
+      if (finalScore > 0) {
+        speScores[spe] = finalScore
+      }
     }
   }
 
@@ -148,7 +169,7 @@ export function computePrediction(
     topSpecialite: breakdown[0].specialite,
     confidence: breakdown[0].pct,
     breakdown,
-    totalSimilarProfiles: withReal.length + withoutReal.length,
+    totalSimilarProfiles: sameCommission.length,
     hasRealData,
   }
 }
