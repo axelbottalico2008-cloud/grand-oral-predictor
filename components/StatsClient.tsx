@@ -2,6 +2,13 @@
 
 import { useState } from 'react'
 
+type TfidfEntry = {
+  spe: string
+  localFreq: number
+  globalFreq: number
+  score: number
+}
+
 type CommissionDay = {
   commission: string
   date: string
@@ -9,7 +16,7 @@ type CommissionDay = {
   hasRealData: boolean
   realSpes: Record<string, number>
   juryAnnexeCount: number
-  declaredSpes: Record<string, number>
+  tfidfScores: TfidfEntry[]
   plausibleJurys: { spe1: string; spe2: string; count: number }[]
 }
 
@@ -24,13 +31,8 @@ export default function StatsClient({ days }: { days: Day[] }) {
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({})
   const [search, setSearch] = useState('')
 
-  const toggleDay = (date: string) => {
-    setExpandedDays(prev => ({ ...prev, [date]: !prev[date] }))
-  }
-
-  const toggleDetails = (key: string) => {
-    setExpandedDetails(prev => ({ ...prev, [key]: !prev[key] }))
-  }
+  const toggleDay = (date: string) => setExpandedDays(prev => ({ ...prev, [date]: !prev[date] }))
+  const toggleDetails = (key: string) => setExpandedDetails(prev => ({ ...prev, [key]: !prev[key] }))
 
   const filteredDays = days.map(day => ({
     ...day,
@@ -40,19 +42,17 @@ export default function StatsClient({ days }: { days: Day[] }) {
       const dateLabel = new Date(day.date).toLocaleDateString('fr-FR', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
       }).toLowerCase()
-      const dateAlt = new Date(day.date).toLocaleDateString('fr-FR').toLowerCase()
       return (
         g.commission.toLowerCase().includes(s) ||
         day.date.includes(s) ||
         dateLabel.includes(s) ||
-        dateAlt.includes(s)
+        new Date(day.date).toLocaleDateString('fr-FR').includes(s)
       )
     })
   })).filter(day => day.commissions.length > 0)
 
   return (
     <div className="space-y-3">
-      {/* Recherche */}
       <div className="relative">
         <input
           type="text"
@@ -76,7 +76,6 @@ export default function StatsClient({ days }: { days: Day[] }) {
 
         return (
           <div key={day.date} className="gop-card p-0 overflow-hidden">
-            {/* Header jour */}
             <button
               onClick={() => toggleDay(day.date)}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-high transition-colors"
@@ -96,25 +95,23 @@ export default function StatsClient({ days }: { days: Day[] }) {
                   const key = `${group.commission}__${group.date}`
                   const isOpen = expandedDetails[key]
 
-                  // Calcul scores pour affichage
                   const totalReal = Object.values(group.realSpes).reduce((a, b) => a + b, 0) + group.juryAnnexeCount
                   const sortedReal = Object.entries(group.realSpes).sort((a, b) => b[1] - a[1])
 
-                  const totalDeclared = Object.values(group.declaredSpes).reduce((a, b) => a + b, 0)
-                  const sortedDeclared = Object.entries(group.declaredSpes)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 4)
+                  // TF-IDF : sépare surreprésentées (score > 1.2) et fréquentes (score <= 1.2)
+                  const surrepresented = group.tfidfScores.filter(t => t.score > 1.2).slice(0, 3)
+                  const frequent = group.tfidfScores.filter(t => t.score <= 1.2 && t.localFreq > 0.3).slice(0, 2)
 
                   return (
-                    <div key={key} className="px-5 py-4 space-y-3">
-                      {/* Header commission */}
+                    <div key={key} className="px-5 py-4 space-y-4">
+                      {/* Header */}
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="font-display font-bold text-sm text-ink-100">
                             Commission {group.commission}
                           </p>
                           <p className="text-xs text-ink-500 font-body mt-0.5">
-                            {group.totalEleves} élève{group.totalEleves > 1 ? 's' : ''} dans la fenêtre ±2j
+                            {group.totalEleves} élève{group.totalEleves > 1 ? 's' : ''} · fenêtre ±2j
                           </p>
                         </div>
                         {group.hasRealData ? (
@@ -165,33 +162,56 @@ export default function StatsClient({ days }: { days: Day[] }) {
                         </div>
                       )}
 
-                      {/* Données estimées */}
-                      {!group.hasRealData && sortedDeclared.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
-                            Spés déclarées (estimation)
-                          </p>
-                          {sortedDeclared.slice(0, 2).map(([spe, count]) => {
-                            const pct = totalDeclared > 0 ? Math.round((count / totalDeclared) * 100) : 0
-                            return (
-                              <div key={spe}>
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="font-body text-sm text-ink-300">{spe}</span>
-                                  <span className="font-display font-bold text-sm text-yellow-400">{pct}%</span>
+                      {/* Données estimées avec TF-IDF */}
+                      {!group.hasRealData && (
+                        <div className="space-y-3">
+                          {/* Spés surreprésentées = signal fort */}
+                          {surrepresented.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
+                                Signal fort — surreprésentées dans cette commission
+                              </p>
+                              {surrepresented.map((t) => (
+                                <div key={t.spe} className="flex items-center justify-between bg-accent/5 border border-accent/20 rounded-xl px-4 py-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-accent text-xs">▲</span>
+                                    <span className="font-body text-sm text-ink-100 font-medium">{t.spe}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="font-display font-bold text-sm text-accent">
+                                      ×{t.score.toFixed(1)}
+                                    </span>
+                                    <p className="text-xs text-ink-500">vs moyenne</p>
+                                  </div>
                                 </div>
-                                <div className="bg-surface-high rounded-full h-1.5 overflow-hidden">
-                                  <div className="h-full bg-yellow-400/60 rounded-full" style={{ width: `${pct}%` }} />
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Spés fréquentes = bruit probable */}
+                          {frequent.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
+                                Fréquentes mais peu distinctives
+                              </p>
+                              {frequent.map((t) => (
+                                <div key={t.spe} className="flex items-center justify-between bg-surface-high rounded-xl px-4 py-2.5">
+                                  <span className="font-body text-sm text-ink-400">{t.spe}</span>
+                                  <span className="text-xs text-ink-500">
+                                    ×{t.score.toFixed(1)} vs moyenne
+                                  </span>
                                 </div>
-                              </div>
-                            )
-                          })}
-                          <p className="text-xs text-ink-500 italic">
-                            ⚠️ Aucun élève n a encore confirmé sa spé passée
-                          </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {surrepresented.length === 0 && frequent.length === 0 && (
+                            <p className="text-xs text-ink-500 italic">Pas assez de données distinctives.</p>
+                          )}
                         </div>
                       )}
 
-                      {/* Jurys plausibles — déroulant */}
+                      {/* Jurys plausibles déroulant */}
                       {group.plausibleJurys.length > 0 && (
                         <div>
                           <button
@@ -204,16 +224,16 @@ export default function StatsClient({ days }: { days: Day[] }) {
                           {isOpen && (
                             <div className="mt-3 pt-3 border-t border-surface-border space-y-3">
                               <p className="font-body text-xs text-ink-500 uppercase tracking-widest">
-                                Jurys plausibles observés
+                                Couples observés
                               </p>
                               {group.plausibleJurys.map((jury, i) => (
                                 <div key={i} className="flex items-center justify-between bg-surface-high border border-surface-border rounded-xl px-4 py-3">
                                   <div className="flex items-center gap-2">
-                                    {i === 0 && <span className="text-accent text-base">▲</span>}
+                                    {i === 0 && <span className="text-accent">▲</span>}
                                     <span className="font-display font-bold text-base text-ink-50">
                                       {jury.spe1}
                                     </span>
-                                    <span className="text-ink-500 text-sm">+</span>
+                                    <span className="text-ink-500">+</span>
                                     <span className="font-display font-bold text-base text-ink-50">
                                       {jury.spe2}
                                     </span>
@@ -226,7 +246,7 @@ export default function StatsClient({ days }: { days: Day[] }) {
                               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 flex items-start gap-3">
                                 <span className="text-yellow-400 text-lg shrink-0">⚠️</span>
                                 <p className="font-body text-sm text-yellow-300 leading-relaxed">
-                                  <span className="font-bold">Jury annexe toujours possible</span> — un examinateur peut être hors spécialité observable. Ne pas exclure cette possibilité.
+                                  <span className="font-bold">Jury annexe toujours possible</span> — un examinateur peut être hors spécialité observable.
                                 </p>
                               </div>
                             </div>

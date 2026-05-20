@@ -33,10 +33,19 @@ export default async function StatsPage() {
     )
   }
 
-  // Toutes les dates uniques triées
-  const allDates = Array.from(new Set(entries.map(e => e.date_passage))).sort()
+  // ── Fréquences globales de chaque spé dans tout le dataset ─────────────
+  const globalSpeCounts: Record<string, number> = {}
+  for (const e of entries) {
+    globalSpeCounts[e.spe1] = (globalSpeCounts[e.spe1] || 0) + 1
+    globalSpeCounts[e.spe2] = (globalSpeCounts[e.spe2] || 0) + 1
+  }
+  const totalGlobalMentions = Object.values(globalSpeCounts).reduce((a, b) => a + b, 0)
+  const globalFreq: Record<string, number> = {}
+  for (const [spe, count] of Object.entries(globalSpeCounts)) {
+    globalFreq[spe] = count / totalGlobalMentions
+  }
 
-  // Toutes les commissions uniques
+  const allDates = Array.from(new Set(entries.map(e => e.date_passage))).sort()
   const allCommissions = Array.from(new Set(entries.map(e => e.commission))).sort()
 
   type CommissionDay = {
@@ -44,13 +53,10 @@ export default async function StatsPage() {
     date: string
     totalEleves: number
     hasRealData: boolean
-    // Spés passées réelles (spe_passee renseignée)
     realSpes: Record<string, number>
-    // Jury annexe count
     juryAnnexeCount: number
-    // Spés déclarées pondérées (sans spe_passee)
-    declaredSpes: Record<string, number>
-    // Jurys plausibles (couples)
+    // Score TF-IDF : fréquence locale / fréquence globale
+    tfidfScores: { spe: string; localFreq: number; globalFreq: number; score: number }[]
     plausibleJurys: { spe1: string; spe2: string; count: number }[]
   }
 
@@ -58,41 +64,49 @@ export default async function StatsPage() {
 
   for (const date of allDates) {
     for (const commission of allCommissions) {
-      // Entrées de cette commission dans la fenêtre temporelle autour de cette date
       const relevant = entries.filter(e =>
         e.commission.trim().toLowerCase() === commission.trim().toLowerCase() &&
         getTemporalWeight(e.date_passage, date) > 0
       )
-
       if (relevant.length === 0) continue
 
       const key = `${commission}__${date}`
       const withReal = relevant.filter(e => e.spe_passee)
       const withoutReal = relevant.filter(e => !e.spe_passee)
 
+      // ── Données réelles ─────────────────────────────────────────────────
       const realSpes: Record<string, number> = {}
       let juryAnnexeCount = 0
-      const declaredSpes: Record<string, number> = {}
-
-      // Données réelles
       for (const e of withReal) {
         const w = getTemporalWeight(e.date_passage, date)
         const spe = e.spe_passee!.trim()
-        if (spe === 'Jury annexe') {
-          juryAnnexeCount += w
-        } else {
-          realSpes[spe] = (realSpes[spe] || 0) + w
-        }
+        if (spe === 'Jury annexe') juryAnnexeCount += w
+        else realSpes[spe] = (realSpes[spe] || 0) + w
       }
 
-      // Données déclarées (sans spe_passee) — pondérées temporellement
+      // ── TF-IDF sur les spés déclarées (sans spe_passee) ─────────────────
+      // Fréquences locales pondérées
+      const localCounts: Record<string, number> = {}
+      let totalLocal = 0
       for (const e of withoutReal) {
         const w = getTemporalWeight(e.date_passage, date)
-        declaredSpes[e.spe1] = (declaredSpes[e.spe1] || 0) + w
-        declaredSpes[e.spe2] = (declaredSpes[e.spe2] || 0) + w
+        localCounts[e.spe1] = (localCounts[e.spe1] || 0) + w
+        localCounts[e.spe2] = (localCounts[e.spe2] || 0) + w
+        totalLocal += 2 * w
       }
 
-      // Jurys plausibles : couples de spés co-occurentes
+      const tfidfScores: CommissionDay['tfidfScores'] = []
+      if (totalLocal > 0) {
+        for (const [spe, count] of Object.entries(localCounts)) {
+          const lf = count / totalLocal
+          const gf = globalFreq[spe] || 0.01
+          const score = lf / gf // ratio : >1 = surreprésenté, <1 = sous-représenté
+          tfidfScores.push({ spe, localFreq: lf, globalFreq: gf, score })
+        }
+        tfidfScores.sort((a, b) => b.score - a.score)
+      }
+
+      // ── Jurys plausibles (couples) ───────────────────────────────────────
       const coupleMap: Record<string, number> = {}
       for (const e of relevant) {
         const w = getTemporalWeight(e.date_passage, date)
@@ -115,13 +129,12 @@ export default async function StatsPage() {
         hasRealData: withReal.length >= 2,
         realSpes,
         juryAnnexeCount: Math.round(juryAnnexeCount * 10) / 10,
-        declaredSpes,
+        tfidfScores,
         plausibleJurys,
       }
     }
   }
 
-  // Grouper par date
   const byDate: Record<string, CommissionDay[]> = {}
   for (const group of Object.values(groups)) {
     if (!byDate[group.date]) byDate[group.date] = []
@@ -151,7 +164,7 @@ export default async function StatsPage() {
             Configurations des jurys
           </h1>
           <p className="font-body text-sm text-ink-400 mt-1">
-            Basé sur {entries.length} profil{entries.length > 1 ? 's' : ''} · fenêtre temporelle ±2 jours
+            Basé sur {entries.length} profil{entries.length > 1 ? 's' : ''} · fenêtre ±2 jours · biais corrigé
           </p>
         </div>
         <StatsClient days={days} />
