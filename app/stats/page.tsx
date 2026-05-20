@@ -100,7 +100,11 @@ export default async function StatsPage() {
         for (const [spe, count] of Object.entries(localCounts)) {
           const lf = count / totalLocal
           const gf = globalFreq[spe] || 0.01
-          const score = lf / gf // ratio : >1 = surreprésenté, <1 = sous-représenté
+          const ratio = lf / gf
+          // Facteur de confiance : log(1 + n) évite que les spés rares explosent
+          // avec 1-2 observations. Plus il y a d observations, plus le signal est fiable.
+          const confidence = Math.log(1 + count)
+          const score = ratio * confidence
           tfidfScores.push({ spe, localFreq: lf, globalFreq: gf, score })
         }
         tfidfScores.sort((a, b) => b.score - a.score)
