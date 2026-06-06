@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -28,11 +30,12 @@ export default async function ResultPage({ params }: Props) {
     .select('*')
     .neq('id', id)
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   const prediction = computePrediction(
     {
       lycee: entry.lycee,
+      classe: entry.classe ?? '',
       spe1: entry.spe1,
       spe2: entry.spe2,
       commission: entry.commission,
