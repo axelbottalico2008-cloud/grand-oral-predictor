@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { computePrediction } from '@/lib/scoring'
 
+function isValidUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str)
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -9,7 +13,11 @@ export async function GET(
   try {
     const { id } = params
 
-    // Récupère l'entrée ciblée
+    // ── Validation UUID ──────────────────────────────────────────────────────
+    if (!id || !isValidUUID(id)) {
+      return NextResponse.json({ error: 'Identifiant invalide.' }, { status: 400 })
+    }
+
     const { data: entry, error: entryError } = await supabase
       .from('entries')
       .select('*')
@@ -20,17 +28,17 @@ export async function GET(
       return NextResponse.json({ error: 'Résultat introuvable.' }, { status: 404 })
     }
 
-    // Récupère tous les autres profils pour recalculer la prédiction
     const { data: others } = await supabase
       .from('entries')
       .select('*')
       .neq('id', id)
       .order('created_at', { ascending: false })
-      .limit(200)
+      .limit(500)
 
     const prediction = computePrediction(
       {
         lycee: entry.lycee,
+        classe: entry.classe ?? '',
         spe1: entry.spe1,
         spe2: entry.spe2,
         commission: entry.commission,
@@ -40,7 +48,6 @@ export async function GET(
       others || []
     )
 
-    // Statistiques globales anonymes (bonus)
     const { count: totalEntries } = await supabase
       .from('entries')
       .select('*', { count: 'exact', head: true })
